@@ -68,6 +68,56 @@ public:
 	}
 };
 
+class Plane : public Intersectable {
+	vec3 point;   // A point on the plane
+	vec3 normal;  // The normal vector of the plane (assumed normalized)
+public:
+	Plane(const vec3& _point, const vec3& _normal, Material* _material) {
+		point = _point;
+		normal = normalize(_normal);
+		material = _material;
+	}
+
+	virtual Material* getMaterial(vec3& position) {
+		return material;
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit hit;
+		float denom = dot(ray.dir, normal);
+		if (fabs(denom) < 1e-6) return hit; // Ray is parallel to the plane
+
+		float t = dot(point - ray.start, normal) / denom;
+		if (t < 0) return hit; // Plane is behind the ray
+		hit.position = ray.start + ray.dir * t;
+		if (hit.position.x < -10) return hit;
+		if (hit.position.x > 10) return hit;
+		if (hit.position.z < -10) return hit;
+		if (hit.position.z > 10) return hit;
+
+
+		hit.t = t;
+		hit.normal = normal;
+		hit.material = getMaterial(hit.position);
+		return hit;
+	}
+};
+
+class CheckeredPlane : public Plane {
+	Material* a;
+	Material* b;
+public:
+	CheckeredPlane(const vec3& _point, const vec3& _normal, Material* _a, Material* _b) : Plane(_point, _normal, nullptr) {
+		a = _a; b = _b;
+	};
+	Material* getMaterial(vec3& position) {
+		int xi = (int)floor(position.x);
+		int zi = (int)floor(position.z);
+		bool isBlack = ((xi & 1) == (zi & 1));
+		return isBlack ? b : a;
+	}
+};
+
 class Camera {
 	vec3 eye, lookat, right, up;
 	float fov;
@@ -112,11 +162,11 @@ class Scene {
 	vec3 La;
 public:
 	void build() {
-		vec3 eye = vec3(0, 0, 2), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
+		vec3 eye = vec3(0, 1, 4), vup = vec3(0, 1, 0), lookat = vec3(0, 0, 0);
 		float fov = 45 * (float)M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
-		La = vec3(0.4f, 0.4f, 0.4f);
+		La = vec3(0.1f, 0.1f, 0.1f);
 		vec3 lightDirection(1, 1, 1), Le(2, 2, 2);
 		lights.push_back(new Light(lightDirection, Le));
 
@@ -124,6 +174,11 @@ public:
 		Material * material1 = new Material(kd1, ks, 50);
 		Material * material2 = new Material(kd2, ks, 100);
 
+		vec3 z(0,0,0), blue(0.0f,0.1f,0.3f), white(0.3f, 0.3f, 0.3f);
+		Material* blueFloor = new Material(blue, z, 0);
+		Material* whiteFloor = new Material(white, z, 0);
+
+		objects.push_back(new CheckeredPlane(vec3(0,-1,0), vec3(0,1,0), blueFloor, whiteFloor));
 		for (int i = 0; i < 2; i++) {
 			objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material1));
 			objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material2));
@@ -249,7 +304,7 @@ public:
 	}
 
 	void onTimeElapsed(float startTime, float endTime) {
-		scene.Animate(endTime - startTime);
-		refreshScreen();
+		//scene.Animate(endTime - startTime);
+		//refreshScreen();
 	}
 } app;
