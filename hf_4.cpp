@@ -135,7 +135,8 @@ public:
 		return Ray(eye, dir);
 	}
 
-	void Animate(float dt) {
+	void Animate() {
+		float dt = 0.125;
 		vec3 d = eye - lookat;
 		eye = vec3(d.x * cos(dt) + d.z * sin(dt), d.y, -d.x * sin(dt) + d.z * cos(dt)) + lookat;
 		set(eye, lookat, up, fov);
@@ -166,7 +167,7 @@ public:
 		float fov = 45 * (float)M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
-		La = vec3(0.1f, 0.1f, 0.1f);
+		La = vec3(0.4f, 0.4f, 0.4f);
 		vec3 lightDirection(1, 1, 1), Le(2, 2, 2);
 		lights.push_back(new Light(lightDirection, Le));
 
@@ -230,7 +231,7 @@ public:
 		return outRadiance;
 	}
 
-	void Animate(float dt) { camera.Animate(dt / 10); }
+	void Animate() { camera.Animate(); }
 };
 
 Scene scene;
@@ -303,8 +304,10 @@ public:
 		fullScreenTexturedQuad->Draw();				// Display rendered image on screen
 	}
 
-	void onTimeElapsed(float startTime, float endTime) {
-		//scene.Animate(endTime - startTime);
-		//refreshScreen();
+	void onKeyboard(int key) {
+		if (key=='a') {
+			scene.Animate();
+			refreshScreen();
+		}
 	}
 } app;
