@@ -3,15 +3,7 @@
 //=============================================================================================
 #include "framework.h"
 #include <chrono>
-
-// Returns time in seconds as a float
-float getElapsedTime() {
-    using namespace std::chrono;
-    static auto startTime = high_resolution_clock::now();
-    auto now = high_resolution_clock::now();
-    duration<float> elapsed = now - startTime;
-    return elapsed.count();
-}
+using namespace std::chrono;
 
 const int windowWidth = 600, windowHeight = 600;
 
@@ -65,6 +57,65 @@ public:
 		hit.normal = (hit.position - center) / radius;
 		hit.material = material;
 		return hit;
+	}
+};
+
+class Cylinder : public Intersectable {
+	vec3 basepoint;      // Endpoints of the cylinder axis
+	float radius;
+	float height;
+	vec3 axis;        // Axis direction (unit vector)
+
+public:
+	Cylinder(const vec3& _bp, const vec3& _axis, float _radius, float _height, Material* _material) {
+		basepoint = _bp;
+		radius = _radius;
+		axis = _axis;
+		material = _material;
+		height = _height;
+	}
+
+	Hit intersect(const Ray& ray) override {
+		Hit hit;
+
+		vec3 d = ray.dir;
+		vec3 m = ray.start - basepoint;
+		vec3 n = axis;
+
+		float mdn = dot(m, n);
+		float ddn = dot(d, n);
+
+		// Project ray and cylinder to a plane perpendicular to axis
+		vec3 d_proj = d - ddn * n;
+		vec3 m_proj = m - mdn * n;
+
+		float a = dot(d_proj, d_proj);
+		float b = 2 * dot(d_proj, m_proj);
+		float c = dot(m_proj, m_proj) - radius * radius;
+
+		float discr = b * b - 4 * a * c;
+		if (discr < 0) return hit;
+
+		float sqrt_discr = sqrtf(discr);
+		float t1 = (-b - sqrt_discr) / (2 * a);
+		float t2 = (-b + sqrt_discr) / (2 * a);
+
+		// Check both t1 and t2 for valid intersection within cylinder height
+		for (float t : { t1, t2 }) {
+			if (t <= 0) continue;
+			vec3 pos = ray.start + d * t;
+			float h = dot(pos - basepoint, n);
+			if (pos.y<basepoint.y+height) {
+				hit.t = t;
+				hit.position = pos;
+				vec3 axis_point = basepoint + n * h;
+				hit.normal = normalize(pos - axis_point);
+				hit.material = material;
+				return hit;
+			}
+		}
+
+		return hit; // No valid intersection
 	}
 };
 
@@ -172,22 +223,22 @@ public:
 		lights.push_back(new Light(lightDirection, Le));
 
 		vec3 kd1(0.3f, 0.2f, 0.1f), kd2(0.1f, 0.2f, 0.3f), ks(2, 2, 2);
-		Material * material1 = new Material(kd1, ks, 50);
+		Material * leftHandCylinder = new Material(kd1, ks, 50);
 		Material * material2 = new Material(kd2, ks, 100);
 
 		vec3 z(0,0,0), blue(0.0f,0.1f,0.3f), white(0.3f, 0.3f, 0.3f);
 		Material* blueFloor = new Material(blue, z, 0);
 		Material* whiteFloor = new Material(white, z, 0);
 
-		objects.push_back(new CheckeredPlane(vec3(0,-1,0), vec3(0,1,0), blueFloor, whiteFloor));
-		for (int i = 0; i < 2; i++) {
-			objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material1));
-			objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material2));
-		}
+		objects.push_back(new CheckeredPlane(vec3(0,-1,0), vec3(0,1,0), blueFloor, whiteFloor)); //floor
+		objects.push_back(new Cylinder(vec3(1,-1,0), vec3(0.1f,1,0), 0.3f, 2, material2)); //should be shiny and golden, right hand cylinder
+		objects.push_back(new Cylinder(vec3(0, -1, -0.8f), vec3(-0.2f,1,-0.1f), 0.3, 2, material2));
+		objects.push_back(new Cylinder(vec3(-1,-1,0), vec3(0,1,0.1f), 0.3f, 2, leftHandCylinder)); //left hand cylinder
+
+
 	}
 
-	void render(std::vector<vec3>& image) {
-		float timeStart = getElapsedTime();
+	void render(std::vector<vec3>& image) {	
 		for (int Y = 0; Y < windowHeight; Y++) {
 #pragma omp parallel for
 			for (int X = 0; X < windowWidth; X++) {
@@ -195,7 +246,6 @@ public:
 				image[Y * windowWidth + X] = vec3(color.x, color.y, color.z);
 			}
 		}
-		printf("Rendering time: %d milliseconds\n", (int)((getElapsedTime() - timeStart) * 1000));
 	}
 
 	Hit firstIntersect(Ray ray) {
